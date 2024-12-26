@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Falling Words Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Press Start 2P', Arial, sans-serif; /* Retro font */
+            background-color: #000; /* Black background for a clean, modern look */
+            color: #fff; /* White text for high contrast */
+        }
+
+        canvas {
+            display: none;
+            background-color: #000; /* Matches the dark theme */
+        }
+
+        #wordInputBox {
+            background-color: #222; /* Dark gray for subtle contrast */
+            color: #fff;
+            border: 2px solid #444; /* Border matching dark tones */
+            border-radius: 8px;
+            padding: 15px;
+            width: 320px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5); /* Subtle depth */
+            text-align: center;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* Center the start menu */
+        }
+
+        #wordInputBox textarea {
+            background-color: #333; /* Slightly lighter gray */
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-family: 'Press Start 2P', Arial, sans-serif;
+            font-size: 14px;
+            padding: 8px;
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        #wordInputBox button {
+            background-color: #0f0; /* Neon green for emphasis */
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-family: 'Press Start 2P', Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
+        }
+
+        #wordInputBox button:hover {
+            transform: scale(1.05); /* Slight zoom effect */
+            background-color: #0d0; /* Darker green on hover */
+        }
+
+        #inputBox {
+            display: none; /* Hidden until the game starts */
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%); /* Center the input box at the bottom */
+            text-align: center;
+        }
+
+        #inputBox input {
+            background-color: #333; /* Matches textarea */
+            color: #fff;
+            border: 2px solid #555;
+            border-radius: 4px;
+            font-family: 'Press Start 2P', Arial, sans-serif;
+            font-size: 16px;
+            padding: 8px;
+            box-sizing: border-box;
+            width: 300px;
+        }
+
+        #score {
+            font-size: 18px;
+            font-family: 'Press Start 2P', Arial, sans-serif;
+            color: #fff;
+            position: fixed;
+            top: 10px;
+            left: 10px;
+        }
+
+        #gameOver {
+            font-size: 24px;
+            font-family: 'Press Start 2P', Arial, sans-serif;
+            background-color: #222;
+            color: #f00; /* Red text for "Game Over" */
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #f00;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="wordInputBox">
+    <textarea id="wordListInput" placeholder="Enter words separated by commas..."></textarea><br>
+    <button id="startButton">Start Game</button>
+</div>
+<div id="inputBox">
+    <input type="text" id="wordInput" placeholder="Type here..." autofocus>
+</div>
+<div id="score">Score: 0</div>
+<div id="gameOver"></div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const wordInput = document.getElementById("wordInput");
+        const wordListInput = document.getElementById("wordListInput");
+        const startButton = document.getElementById("startButton");
+        const wordInputBox = document.getElementById("wordInputBox");
+        const scoreDisplay = document.getElementById("score");
+        const gameOverDisplay = document.getElementById("gameOver");
+        const inputBox = document.getElementById("inputBox");
+
+        let words = []; // Word list initialized by user input
+        let availableWords = [];
+        const fallingWords = [];
+        let score = 0;
+        let timerRunning = true;
+
+        let lastInputTime = 0; // Track the time of the last input
+        let lastDeleteTime = 0; // Track the time of the last delete key press
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        class Word {
+            constructor(text, x, y, speed) {
+                this.text = text;
+                this.x = x;
+                this.y = y;
+                this.speed = speed;
+                this.exploding = false;
+                this.explosionFrame = 0;
+                this.dots = [];
+            }
+
+            draw() {
+                if (this.exploding) {
+                    this.drawDissolvingDots();
+                } else {
+                    ctx.font = "30px 'Press Start 2P'";
+                    ctx.fillStyle = "#fff";
+                    ctx.fillText(this.text, this.x, this.y);
+                }
+            }
+
+            update() {
+                if (!this.exploding) {
+                    this.y += this.speed;
+                }
+            }
+
+            explode(typingSpeed) {
+                this.exploding = true;
+                this.explosionFrame = 0;
+                const letters = this.text.split('');
+                const letterWidth = ctx.measureText(this.text).width / letters.length;
+
+                // Adjusted to give more dots even for slower typing
+                const dotCount = Math.min(Math.max(10, Math.floor(300 / typingSpeed)), 50);
+
+                for (let i = 0; i < dotCount; i++) {
+                    this.dots.push({
+                        x: this.x + Math.random() * letterWidth * letters.length,
+                        y: this.y + Math.random() * 30,
+                        dx: Math.random() * 4 - 2,
+                        dy: Math.random() * 4 - 2,
+                        color: [
+                            '#FFFFFF', // White
+                            '#0F0',    // Neon Green
+                            '#6A0DAD', // Purple
+                            '#222222'  // Dark Gray
+                        ][Math.floor(Math.random() * 4)],
+                        size: Math.random() * 5 + 2
+                    });
+                }
+            }
+
+            drawDissolvingDots() {
+                for (let dot of this.dots) {
+                    ctx.fillStyle = dot.color;
+                    ctx.beginPath();
+                    ctx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    dot.x += dot.dx;
+                    dot.y += dot.dy;
+                    dot.size *= 0.95; 
+                }
+                this.explosionFrame++;
+                if (this.explosionFrame > 50) {
+                    this.dots = this.dots.filter(dot => dot.size > 0.5);
+                    if (this.dots.length === 0) {
+                        this.explosionFrame = Infinity; 
+                    }
+                }
+            }
+        }
+
+        function spawnWord() {
+            if (availableWords.length === 0) return;
+            const index = Math.floor(Math.random() * availableWords.length);
+            const text = availableWords.splice(index, 1)[0];
+            const x = Math.random() * (canvas.width - 100);
+            const speed = Math.random() * 1 + 0.5;
+            fallingWords.push(new Word(text, x, 0, speed));
+        }
+
+        function updateGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = fallingWords.length - 1; i >= 0; i--) {
+                const word = fallingWords[i];
+                if (word.exploding && word.explosionFrame > 50 && word.dots.length === 0) {
+                    fallingWords.splice(i, 1);
+                    continue;
+                }
+                if (word.y > canvas.height && !word.exploding) {
+                    fallingWords.splice(i, 1);
+                    score -= 10;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                    continue;
+                }
+                word.update();
+                word.draw();
+            }
+            if (availableWords.length === 0 && fallingWords.length === 0 && timerRunning) {
+                endGame();
+            }
+        }
+
+        function gameLoop() {
+            if (timerRunning) {
+                updateGame();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function checkInput() {
+            const inputValue = wordInput.value.trim();
+            const now = Date.now();
+            const typingSpeed = lastInputTime > 0 ? (1000 / (now - lastInputTime)) : 100; // Calculate typing speed in ms
+            lastInputTime = now;
+            for (let i = 0; i < fallingWords.length; i++) {
+                if (fallingWords[i].text === inputValue) {
+                    fallingWords[i].explode(typingSpeed);
+                    score += 10;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                    wordInput.value = "";
+                    return;
+                }
+            }
+        }
+
+        wordInput.addEventListener("keydown", (event) => {
+            const now = Date.now();
+            if (event.key === "Backspace") {
+                if (now - lastDeleteTime < 300) { // Double delete threshold
+                    wordInput.value = "";
+                }
+                lastDeleteTime = now;
+            }
+        });
+
+        function endGame() {
+            timerRunning = false;
+            gameOverDisplay.innerHTML = `
+                    <p>Game Over!</p>
+                    <p>Score: ${score}</p>
+                `;
+            gameOverDisplay.style.display = "block";
+            wordInput.disabled = true;
+        }
+
+        function startGame() {
+            const userWords = wordListInput.value.split(",").map(w => w.trim()).filter(w => w);
+            if (userWords.length > 0) {
+                words = userWords;
+                availableWords = [...words];
+                wordInputBox.style.display = "none";
+                canvas.style.display = "block";
+                inputBox.style.display = "block"; /* Show input box when game starts */
+                scoreDisplay.style.display = "block";
+                wordInput.focus(); 
+                gameLoop();
+                setInterval(spawnWord, 2000);
+            } else {
+                alert("Please enter at least one word to start the game.");
+            }
+        }
+
+        startButton.addEventListener("click", startGame);
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && wordInputBox.style.display !== "none") {
+                startGame();
+            }
+        });
+
+        wordInput.addEventListener("input", checkInput);
+    });
+</script>
+</body>
+</html>
