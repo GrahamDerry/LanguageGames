@@ -135,6 +135,14 @@
 <div id="gameOver"></div>
 
 <script>
+    function adjustHeight() {
+        const canvas = document.getElementById('gameCanvas');
+        canvas.style.height = window.innerHeight + 'px';
+    }
+
+    window.addEventListener('resize', adjustHeight);
+    adjustHeight(); // Call it initially to set the height
+
     document.addEventListener("DOMContentLoaded", () => {
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
@@ -157,6 +165,16 @@
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        wordInput.addEventListener("focus", () => {
+            wordInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+
 
         class Word {
             constructor(text, x, y, speed) {
