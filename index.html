@@ -16,6 +16,7 @@
         canvas {
             display: none;
             background-color: #000; /* Matches the dark theme */
+            height: 100dvh; /* Dynamic viewport height */
         }
 
         #wordInputBox {
@@ -93,22 +94,22 @@
         }
 
         #gameOver {
-        	font-size: 24px;
-			font-family: 'Press Start 2P', Arial, sans-serif;
-			background-color: #444; /* Dark gray for contrast */
-			color: #fff; /* White text */
-			padding: 20px;
-			border-radius: 8px;
-			border: 2px solid #fff; /* White border */
-			position: fixed;
-			top: 50%;
-			left: 50%;
-			transform: translate(-50%, -50%);
-			text-align: center;
-			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-			display: none;
-			animation: fadeIn 0.5s ease-in-out;
-		}
+            font-size: 24px;
+            font-family: 'Press Start 2P', Arial, sans-serif;
+            background-color: #444; /* Dark gray for contrast */
+            color: #fff; /* White text */
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #fff; /* White border */
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
 
 
         @keyframes fadeIn {
