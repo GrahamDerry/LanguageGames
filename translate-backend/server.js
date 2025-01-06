@@ -9,6 +9,15 @@ const PORT = process.env.PORT || 5000;
 // Load the API key from environment variables
 const apiKey = process.env.GOOGLE_API_KEY;
 
+// Log to confirm if the API key is loaded
+console.log("Google API Key:", apiKey ? "Loaded" : "Not Set");
+
+// Check if the API key is missing and exit if it is
+if (!apiKey) {
+  console.error("Google API key is not set. Please set the GOOGLE_API_KEY environment variable.");
+  process.exit(1);
+}
+
 app.use(cors());
 app.use(bodyParser.json());
 
