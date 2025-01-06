@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Translate API Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 50px;
+    }
+    input, button {
+      margin: 10px;
+      padding: 10px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Google Translate Web App</h1>
+  <input type="text" id="inputText" placeholder="Type text here...">
+  <div>
+    <button id="translateToEnglish">English</button>
+    <button id="translateToThai">Thai</button>
+  </div>
+
+   <script>
+    // Updated translate function
+    function translate(targetLanguage) {
+      const inputTextElement = document.getElementById("inputText");
+      const inputText = inputTextElement.value;
+
+      if (!inputText.trim()) {
+        alert("Please enter text to translate.");
+        return;
+      }
+
+      fetch("http://localhost:5000/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: inputText,
+          target: targetLanguage,
+        }),
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.translatedText) {
+          inputTextElement.value = data.translatedText; // Update the text box with the translation
+        } else {
+          alert("Translation failed.");
+        }
+      })
+      .catch(error => {
+        console.error("Error:", error);
+        alert("Failed to translate. Check console for details.");
+      });
+    }
+
+    // Add event listeners for buttons
+    document.getElementById("translateToEnglish").addEventListener("click", () => {
+      translate("en");
+    });
+
+    document.getElementById("translateToThai").addEventListener("click", () => {
+      translate("th");
+    });
+  </script>
+</body>
+</html>
