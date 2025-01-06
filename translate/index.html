@@ -28,7 +28,6 @@
   </div>
 
    <script>
-    // Updated translate function
     function translate(targetLanguage) {
       const inputTextElement = document.getElementById("inputText");
       const inputText = inputTextElement.value;
@@ -48,18 +47,23 @@
           target: targetLanguage,
         }),
       })
-      .then(response => response.json())
-      .then(data => {
-        if (data.translatedText) {
-          inputTextElement.value = data.translatedText; // Update the text box with the translation
-        } else {
-          alert("Translation failed.");
-        }
-      })
-      .catch(error => {
-        console.error("Error:", error);
-        alert("Failed to translate. Check console for details.");
-      });
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("Translation failed");
+          }
+          return response.json();
+        })
+        .then((data) => {
+          if (data.translatedText) {
+            inputTextElement.value = data.translatedText; // Update the text box with the translation
+          } else {
+            alert("Error in translation response.");
+          }
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          alert("Failed to translate. Check console for details.");
+        });
     }
 
     // Add event listeners for buttons
