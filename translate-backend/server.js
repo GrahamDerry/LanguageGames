@@ -50,34 +50,28 @@ const PORT = process.env.PORT || 5000;
 // Main async initialization block
 (async () => {
   try {
-    // Test: Authenticate service account
-    const auth = new GoogleAuth();
-    const authClient = await auth.getClient();
-    
-    //console.log("Application is authenticating as:", authClient.email);
-
     // Load secrets
-    //const apiKey = await getSecret("GoogleAPIKey");
-    //console.log("Retrieved GoogleAPIKey:", apiKey);
+    const secrets = {
+      GoogleAPIKey: await getSecret("GoogleAPIKey"),
+      TelegramBotToken: await getSecret("TelegramBotToken"),
+      ChatGPT: await getSecret("ChatGPT"),
+    };
 
-    const TELEGRAM_API_TOKEN = await getSecret("TelegramBotToken");
-    const OPENAI_API_KEY = await getSecret("ChatGPT");
+    // Validate secrets
+    if (!secrets.GoogleAPIKey || !secrets.TelegramBotToken || !secrets.ChatGPT) {
+      throw new Error("Missing required secrets");
+    }
 
-    //if (!apiKey) {
-    //  console.error("Failed to retrieve Google API key from Secret Manager.");
-    //  process.exit(1);
-    //}
-
-    //console.log("Google API Key loaded successfully");
+    console.log("Secrets loaded successfully");
 
     // Create Telegram Bot
-    const bot = new TelegramBot(TELEGRAM_API_TOKEN, { polling: true });
+    const bot = new TelegramBot(secrets.TelegramBotToken, { polling: true });
 
     // Middleware
     app.use(cors());
     app.use(bodyParser.json());
 
-    // ChatGPT API call
+    // ChatGPT API call function
     async function getChatGPTResponse(prompt) {
       try {
         const response = await axios.post(
@@ -88,7 +82,7 @@ const PORT = process.env.PORT || 5000;
           },
           {
             headers: {
-              Authorization: `Bearer ${OPENAI_API_KEY}`,
+              Authorization: `Bearer ${secrets.ChatGPT}`,
               "Content-Type": "application/json",
             },
           }
@@ -121,15 +115,10 @@ const PORT = process.env.PORT || 5000;
 
       try {
         const response = await axios.post(
-          `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`,
-          {
-            q: text,
-            target: target,
-          }
+          `https://translation.googleapis.com/language/translate/v2?key=${secrets.GoogleAPIKey}`,
+          { q: text, target: target }
         );
-
-        const translatedText = response.data.data.translations[0].translatedText;
-        res.json({ translatedText });
+        res.json({ translatedText: response.data.data.translations[0].translatedText });
       } catch (error) {
         console.error("Translation API Error:", error.response?.data || error.message);
         res.status(500).json({ error: "Translation failed" });
@@ -145,3 +134,4 @@ const PORT = process.env.PORT || 5000;
     process.exit(1); // Exit the process if secrets cannot be retrieved
   }
 })();
+
