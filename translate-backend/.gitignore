@@ -1,0 +1,6 @@
+
+# Ignore service account key
+translate-446221-16f4094b18e7.json
+
+# Ignore node_modules directory
+node_modules/
