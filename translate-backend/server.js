@@ -5,6 +5,7 @@ import cors from "cors";
 import TelegramBot from "node-telegram-bot-api";
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { GoogleAuth } from "google-auth-library";
+import fs from "fs";
 
 const userSessions = {};
 
@@ -120,6 +121,8 @@ const PORT = process.env.PORT || 5000;
       );
     });
     
+
+
     bot.onText(/\/example/, (msg) => {
       const chatId = msg.chat.id;
 
@@ -132,8 +135,93 @@ const PORT = process.env.PORT || 5000;
       // Save user state as "waiting for word"
       userSessions[chatId].state = "awaiting_word";
 
-      bot.sendMessage(chatId, "Please enter a word or expression to get examples:");
+      bot.sendMessage(chatId, "Please enter a word or expression in to get examples:");
     });
+
+    // Handle the /listen command
+    bot.onText(/\/listen/, (msg) => {
+      const chatId = msg.chat.id;
+
+      // Check if the user has selected a language
+      if (!userSessions[chatId] || !userSessions[chatId].language) {
+        bot.sendMessage(chatId, "Please select a language first using /English, /Thai, or /Russian.");
+        return;
+      }
+
+      const language = userSessions[chatId].language;
+
+      // Set the user's state to "listening mode"
+      userSessions[chatId].state = "listening_mode";
+
+      bot.sendMessage(chatId, `You are now in "listening mode." Enter text in ${language} to hear it spoken. Type /exit to leave this mode.`);
+    });
+
+    // Handle the /exit command to exit "listening mode"
+    bot.onText(/\/exit/, (msg) => {
+      const chatId = msg.chat.id;
+
+      if (userSessions[chatId]?.state === "listening_mode") {
+        userSessions[chatId].state = null; // Reset the user's state
+        bot.sendMessage(chatId, "You have exited 'listening mode.' Type /listen to start again.");
+      } else {
+        bot.sendMessage(chatId, "You are not in 'listening mode.' Type /listen to start.");
+      }
+    });
+    
+    // Handle any other command to exit "listening mode"
+    bot.onText(/\/.+/, (msg) => {
+      const chatId = msg.chat.id;
+
+      // Check if the command is not /listen
+      if (userSessions[chatId]?.state === "listening_mode" && msg.text !== "/listen") {
+        userSessions[chatId].state = null; // Reset the user's state
+        bot.sendMessage(chatId, "You have exited 'listening mode.'");
+      }
+    });
+
+    // Handle messages for "listening mode"
+    bot.on("message", async (msg) => {
+      const chatId = msg.chat.id;
+
+      // Check if the user is in "listening mode"
+      if (userSessions[chatId]?.state === "listening_mode") {
+        const text = msg.text;
+        
+        // Ignore commands while in listening mode
+        if (text.startsWith("/")) {
+          return;
+        }
+
+        const language = userSessions[chatId].language;
+
+        try {
+          // Send the text to the TTS endpoint
+          const response = await axios.post(`http://localhost:${PORT}/tts`, {
+            text,
+            languageCode: language === "Thai" ? "th-TH" : language === "English" ? "en-US" : language === "Russian" ? "ru-RU" : null,
+          });
+
+          if (!response.data) {
+            throw new Error("No audio generated.");
+          }          
+
+          // Create a temporary audio file
+          const audioBuffer = Buffer.from(response.data, "base64");
+          const audioFilePath = `./${chatId}_audio.mp3`;
+          fs.writeFileSync(audioFilePath, audioBuffer);
+
+          // Send the audio file to the user
+          await bot.sendAudio(chatId, audioFilePath);
+
+          // Delete the temporary file after sending
+          fs.unlinkSync(audioFilePath);
+        } catch (error) {
+          console.error("Error generating audio:", error);
+          bot.sendMessage(chatId, "Sorry, I couldn't generate the audio. Please try again later.");
+        }
+      }
+    });
+
 
     // Handle subsequent messages for the word
     bot.on("message", async (msg) => {
@@ -181,6 +269,31 @@ const PORT = process.env.PORT || 5000;
       } catch (error) {
         console.error("Translation API Error:", error.response?.data || error.message);
         res.status(500).json({ error: "Translation failed" });
+      }
+    });
+
+    //tts route 
+    app.post("/tts", async (req, res) => {
+      const { text, languageCode } = req.body;
+
+      if (!text || !languageCode) {
+        return res.status(400).json({ error: "Missing 'text' or 'languageCode' field" });
+      }
+
+      try {
+        const response = await axios.post(
+          `https://texttospeech.googleapis.com/v1/text:synthesize?key=${secrets.GoogleAPIKey}`,
+          {
+            input: { text },
+            voice: { languageCode, ssmlGender: "NEUTRAL" },
+            audioConfig: { audioEncoding: "MP3" },
+          }
+        );
+
+        res.json(response.data.audioContent);
+      } catch (error) {
+        console.error("Text-to-Speech API Error:", error.response?.data || error.message);
+        res.status(500).json({ error: "Text-to-Speech generation failed" });
       }
     });
 
