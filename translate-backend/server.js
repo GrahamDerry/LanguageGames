@@ -6,6 +6,8 @@ import TelegramBot from "node-telegram-bot-api";
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { GoogleAuth } from "google-auth-library";
 
+const userSessions = {};
+
 // Initialize Secret Manager client
 const client = new SecretManagerServiceClient();
 
@@ -94,15 +96,72 @@ const PORT = process.env.PORT || 5000;
       }
     }
 
-    // Telegram bot listener
-    bot.on("message", async (msg) => {
-      console.log("Received message:", msg.text);
+    // Bot command listeners
+    bot.onText(/\/start/, (msg) => {
       const chatId = msg.chat.id;
-      const userMessage = msg.text;
+      bot.sendMessage(chatId, "Welcome! Please select a language:", {
+        reply_markup: {
+          keyboard: [["/English"], ["/Thai"], ["/Russian"]],
+          one_time_keyboard: true,
+        },
+      });
+    });
 
-      bot.sendMessage(chatId, "Processing your request...");
-      const chatGPTResponse = await getChatGPTResponse(userMessage);
-      bot.sendMessage(chatId, chatGPTResponse);
+    bot.onText(/\/English|\/Thai|\/Russian/, (msg, match) => {
+      const chatId = msg.chat.id;
+      const selectedLanguage = match[0].slice(1); // Remove the "/" from the command
+
+      // Save user’s language preference
+      userSessions[chatId] = { language: selectedLanguage };
+
+      bot.sendMessage(
+        chatId,
+        `Language set to ${selectedLanguage}. Available commands:\n/example - Get examples of a word in ${selectedLanguage}\n/listen - Coming soon!\n/change_level - Coming soon!`
+      );
+    });
+    
+    bot.onText(/\/example/, (msg) => {
+      const chatId = msg.chat.id;
+
+      // Check if the user has selected a language
+      if (!userSessions[chatId] || !userSessions[chatId].language) {
+        bot.sendMessage(chatId, "Please select a language first using /English, /Thai, or /Russian.");
+        return;
+      }
+
+      // Save user state as "waiting for word"
+      userSessions[chatId].state = "awaiting_word";
+
+      bot.sendMessage(chatId, "Please enter a word or expression to get examples:");
+    });
+
+    // Handle subsequent messages for the word
+    bot.on("message", async (msg) => {
+      const chatId = msg.chat.id;
+
+      // Check if the user is in the correct state
+      if (userSessions[chatId] && userSessions[chatId].state === "awaiting_word") {
+        const word = msg.text;
+        const language = userSessions[chatId].language;
+
+        // Reset the user's state
+        userSessions[chatId].state = null;
+
+        // Generate the prompt for ChatGPT
+        const prompt = `
+        Please create five natural sounding ${language} sentences that use the following term or expression: ${word}.
+        Provide an English translation for the examples.
+        Don't say it's a translation. Just provide the English translation, and only that.
+        List the translation directly below the sentence it's translated from.
+        `;
+
+        try {
+          const examples = await getChatGPTResponse(prompt);
+          bot.sendMessage(chatId, examples);
+        } catch (error) {
+          bot.sendMessage(chatId, "Sorry, I couldn't generate examples. Please try again later.");
+        }
+      }
     });
 
     // Route to handle translation
